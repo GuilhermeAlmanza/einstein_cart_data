@@ -1,0 +1,101 @@
+<script runat="server">
+    Platform.Load("Core", "1");
+
+    try {
+        // retornar linhas da Data Extension 
+        // laço -> realizar request 
+        // laço -> qtd itens 
+        var defaults = {
+            "link": "Link",
+            "image_link": "ImageLink",
+            "product_code": "ProductCode",
+            "name": "Name",
+            "regular_price": "RegularPrice",
+            "sale_price": "SalePrice",
+            "sku_id": "SkuID"
+        };
+        var settings = { "fields": { "image_link": "ImageLink", "name": "ProductName", "regular_price": "RegularPrice" }, "maxItems": 6, "sortBy": "item_order", "sortDirection": "desc", "desktopCols": 0, "mobileCols": 0, "useSalePricing": false };
+        var protocol = "https";
+        var mid = Platform.Recipient.GetAttributeValue('memberid');
+        var hostname = mid + ".recs.igodigital.com";
+        var qs = "?item_count=" + settings["maxItems"] + "&sort_by=" + settings["sortBy"] + "&sort_direction=" + settings["sortDirection"];
+        var includes = [];
+        for (var key in settings["fields"]) {
+            if (defaults[key] == null) {
+                includes = includes.concat(settings["fields"][key]);
+            }
+        }
+        // if(includes.length > 0) {
+        //     qs += "&include=" + includes.join("|")
+        // }
+        if (event_locale) {
+            qs += "&locale=" + event_locale
+        }
+
+        // build URL
+        var mid = Platform.Recipient.GetAttributeValue('memberid');
+        var url = protocol + "://" + hostname + "/" + mid + "/trigger" + qs;
+        // Write("URL: " + url + "</br>");
+        var dataExtensionCart = DataExtension.Init("abandoned_cart_1676643552");    // source Data Extension
+        var rows = dataExtensionCart.Rows.Retrieve();
+        // Write(Stringify(rows[0]));
+        for (var index = 0; index < rows.length; index++) {
+            data = '{"trigger_payload":"' + rows[index].data + '"}';
+            // Write(data);
+            subscriberKey = rows[index].subscriber_key;
+            timestamp = rows[index].timestamp;
+            var result = HTTP.Post(url, "application/json", data, []);
+            var response = Platform.Function.ParseJSON(result.Response[0]);
+            // Write("Num de produtos 1403: " + response.products.length + "</br>");
+            for (var index_products = 0; index_products < response.products.length; index_products++) {
+                // Write("novo obj</br>");
+                // Write(response.products[index_products].name + "</br>");
+                var config = {
+                    dataextension: "tb_carrinho_1711",      // destination Data Extension
+                    attributes: {
+                        Names: [
+                            "subscriber_key",
+                            "link",
+                            "image_link",
+                            "product_code",
+                            "name",
+                            "regular_price",
+                            "sale_price",
+                            "sku_id",
+                            "online_availability",
+                            "quantity",
+                            "amount",
+                            "timestamp"
+                        ],
+                        Values: [
+                            subscriberKey,
+                            response.products[index_products].link,
+                            response.products[index_products].image_link,
+                            response.products[index_products].product_code,
+                            response.products[index_products].name,
+                            response.products[index_products].regular_price,
+                            response.products[index_products].sale_price,
+                            response.products[index_products].sku_id,
+                            response.products[index_products].online_availability,
+                            response.products[index_products].quantity,
+                            response.products[index_products].amount,
+                            timestamp
+                        ]
+                    }
+                }
+                var result = Platform.Function.InsertData(
+                    config.dataextension,
+                    config.attributes.Names,
+                    config.attributes.Values
+                );
+                // Write("Rows Inserted: ");
+                // Platform.Response.Write(Platform.Function.Stringify(result) + "</br>");
+            }
+        }
+    }
+
+    catch (err) {
+        Write("Error: " + err);
+    }
+
+</script>
